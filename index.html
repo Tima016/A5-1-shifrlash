@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A5/1 Shifrlash Algoritmi</title>
+    <style>
+        /* Umumiy sahifa uchun sozlamalar */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        /* Asosiy konteyner */
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            width: 400px;
+            text-align: center;
+        }
+
+        /* Sarlavha */
+        h1 {
+            color: #4CAF50;
+            margin-bottom: 20px;
+        }
+
+        /* Formaning umumiy ko'rinishi */
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        label {
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+
+        input {
+            padding: 10px;
+            font-size: 14px;
+            width: 100%;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        /* Natija bo'limi */
+        #result {
+            margin-top: 30px;
+            text-align: left;
+            display: none; /* Boshlang'ichda natijalar ko'rsatilmasin */
+        }
+
+        h2 {
+            color: #333;
+        }
+
+        #ciphertext, #decrypted-text {
+            font-weight: bold;
+            color: #4CAF50;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>A5/1 Shifrlash Algoritmi</h1>
+
+        <!-- Kalit va matn uchun forma -->
+        <form id="cipher-form">
+            <div class="form-group">
+                <label for="key">Kalit (64 bitli):</label>
+                <input type="text" id="key" maxlength="64" placeholder="64-bitli kalitni kiriting" required>
+            </div>
+
+            <div class="form-group">
+                <label for="plaintext">Ochiq Matn (0 va 1'lar bilan):</label>
+                <input type="text" id="plaintext" placeholder="Matnni kiriting" required>
+            </div>
+
+            <button type="submit">Shifrlash</button>
+        </form>
+
+        <!-- Natijalarni ko'rsatish -->
+        <div id="result">
+            <h2>Natija</h2>
+            <p><strong>Shifrlangan Matn:</strong> <span id="ciphertext"></span></p>
+            <p><strong>Deshifrlangan Matn:</strong> <span id="decrypted-text"></span></p>
+        </div>
+    </div>
+
+    <script>
+        class A51Cipher {
+            constructor(key) {
+                if (key.length !== 64) {
+                    throw new Error("Kalit 64 bitli bo'lishi kerak.");
+                }
+
+                this.initial_lfsr1 = key.slice(0, 19).split('').map(bit => parseInt(bit));
+                this.initial_lfsr2 = key.slice(19, 41).split('').map(bit => parseInt(bit));
+                this.initial_lfsr3 = key.slice(41).split('').map(bit => parseInt(bit));
+
+                this.reset();
+
+                this.taps = {
+                    "lfsr1": [13, 16, 17, 18],
+                    "lfsr2": [20, 21],
+                    "lfsr3": [7, 20, 21, 22]
+                };
+
+                this.majority_bits = [8, 10, 10];
+            }
+
+            reset() {
+                this.lfsr1 = [...this.initial_lfsr1];
+                this.lfsr2 = [...this.initial_lfsr2];
+                this.lfsr3 = [...this.initial_lfsr3];
+            }
+
+            majorityVote() {
+                const bits = [
+                    this.lfsr1[this.majority_bits[0]],
+                    this.lfsr2[this.majority_bits[1]],
+                    this.lfsr3[this.majority_bits[2]]
+                ];
+                return bits.reduce((sum, bit) => sum + bit, 0) > 1 ? 1 : 0;
+            }
+
+            step() {
+                const majority = this.majorityVote();
+
+                if (this.lfsr1[this.majority_bits[0]] === majority) {
+                    const feedback = this.taps["lfsr1"].reduce((sum, index) => sum + this.lfsr1[index], 0) % 2;
+                    this.lfsr1 = [feedback, ...this.lfsr1.slice(0, -1)];
+                }
+
+                if (this.lfsr2[this.majority_bits[1]] === majority) {
+                    const feedback = this.taps["lfsr2"].reduce((sum, index) => sum + this.lfsr2[index], 0) % 2;
+                    this.lfsr2 = [feedback, ...this.lfsr2.slice(0, -1)];
+                }
+
+                if (this.lfsr3[this.majority_bits[2]] === majority) {
+                    const feedback = this.taps["lfsr3"].reduce((sum, index) => sum + this.lfsr3[index], 0) % 2;
+                    this.lfsr3 = [feedback, ...this.lfsr3.slice(0, -1)];
+                }
+
+                return this.lfsr1[this.lfsr1.length - 1] ^ this.lfsr2[this.lfsr2.length - 1] ^ this.lfsr3[this.lfsr3.length - 1];
+            }
+
+            generateKeystream(length) {
+                const keystream = [];
+                for (let i = 0; i < length; i++) {
+                    keystream.push(this.step());
+                }
+                return keystream;
+            }
+
+            encrypt(plaintext) {
+                this.reset();
+                const plaintextBits = plaintext.split('').map(bit => parseInt(bit));
+                const keystream = this.generateKeystream(plaintextBits.length);
+                const ciphertext = plaintextBits.map((bit, index) => (bit ^ keystream[index]).toString()).join('');
+                return ciphertext;
+            }
+
+            decrypt(ciphertext) {
+                return this.encrypt(ciphertext);  // XOR qilish orqali asl matnni qaytarish
+            }
+        }
+
+        document.getElementById("cipher-form").addEventListener("submit", function(event) {
+            event.preventDefault();
+
+            const key = document.getElementById("key").value;
+            const plaintext = document.getElementById("plaintext").value;
+
+            const cipher = new A51Cipher(key);
+            const ciphertext = cipher.encrypt(plaintext);
+            const decrypted = cipher.decrypt(ciphertext);
+
+            // Natijalarni ko'rsatish
+            document.getElementById("ciphertext").textContent = ciphertext;
+            document.getElementById("decrypted-text").textContent = decrypted;
+
+            document.getElementById("result").style.display = "block";
+        });
+    </script>
+
+</body>
+</html>
